@@ -1,39 +1,54 @@
 package model;
 
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Date;
 
 // Student with a name, id, hours left for the classroom, yard and road,
 // a boolean for availability and a list of scheduled unavailable days
 public class Student {
     private static int nextId = 1;
     private int id;
-    private String name;
+    private SimpleStringProperty name;
     private int classHoursLeft;
     private int yardHoursLeft;
     private int roadHoursLeft;
+
+    private int flexHoursLeft;
     private Boolean available = true;
-    private ArrayList<LocalDate> unavailableDays;
-    private LocalDate roadTestDate;
-    private int introClassDaysLeft = 3;
+    private SimpleObjectProperty<ArrayList<LocalDate>> unavailableDays;
+    private SimpleObjectProperty<LocalDate> roadTestDate;
+    private int introClassDaysLeft;
 
     public Student(String name) {
-        this.name = name;
+        this.name = new SimpleStringProperty(name);
         this.id = nextId++;
         this.classHoursLeft = 50;
         this.yardHoursLeft = 40;
         this.roadHoursLeft = 50;
-        unavailableDays = new ArrayList<>();
+        this.flexHoursLeft = 6;
+        unavailableDays = new SimpleObjectProperty<>(new ArrayList<>());
+        introClassDaysLeft = 3;
 
     }
 
     public String getName() {
-        return this.name;
+        return name.get();
     }
 
     public LocalDate getRoadTestDate() {
-        return this.roadTestDate;
+        return roadTestDate.get();
+    }
+
+    public int getFlexHoursLeft() {
+        return this.flexHoursLeft;
+    }
+
+    public void flexLesson(int hours) {
+        this.flexHoursLeft -= hours;
+        this.available = true;
     }
 
     public int getId() {
@@ -58,7 +73,7 @@ public class Student {
     }
 
     public ArrayList<LocalDate> getUnavailableDays() {
-        return unavailableDays;
+        return unavailableDays.get();
     }
 
     public void introDayComplete() {
@@ -67,8 +82,21 @@ public class Student {
     }
 
     public void setRoadTestDate(LocalDate date) {
-        roadTestDate = date;
+        roadTestDate = new SimpleObjectProperty<>(date);
     }
+
+    public void setClassHoursLeft(int hours) {
+        classHoursLeft = hours;
+    }
+
+    public void setYardHoursLeft(int hours) {
+        yardHoursLeft = hours;
+    }
+
+    public void setRoadHoursLeft(int hours) {
+        roadHoursLeft = hours;
+    }
+
 
 
     //MODIFIES: classHoursLeft
@@ -113,6 +141,19 @@ public class Student {
         this.available = true;
     }
 
+    public void undoRoadLesson(int hours) {
+        this.roadHoursLeft += hours;
+    }
+
+    public void undoClassLesson(int hours) {
+        this.classHoursLeft += hours;
+    }
+
+    public void undoYardLesson(int hours) {
+        this.yardHoursLeft += hours;
+    }
+
+
     //MODIFIES: available
     //EFFECTS: sets student availability to false for the day
     public void studentUnavailable() {
@@ -122,13 +163,22 @@ public class Student {
     //MODIFIES: unavailableDays
     //EFFECTS: adds list of dates to unavailable date list
     public void studentUnavailable(ArrayList<LocalDate> dateList) {
-        unavailableDays.addAll(dateList);
+        unavailableDays.get().addAll(dateList);
     }
 
     //MODIFIES: unavailableDays
     //EFFECTS: adds unavailable date to list of unavailable days
     public void studentUnavailable(LocalDate date) {
-        unavailableDays.add(date);
+        unavailableDays.get().add(date);
+    }
+
+    public boolean checkAvailabiltyForDay(LocalDate date) {
+        for (LocalDate unavailableDay: unavailableDays.get()) {
+            if (unavailableDay.getDayOfYear() == date.getDayOfYear()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     //EFFECTS: returns total number of hours left

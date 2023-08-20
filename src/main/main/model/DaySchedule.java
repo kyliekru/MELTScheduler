@@ -1,34 +1,35 @@
 package model;
 
+import javafx.util.Pair;
+
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 
 public class DaySchedule {
     private int trucks;
     private ArrayList<Instructor> freeInstructors;
     private ArrayList<Student> freeStudents;
-    private ArrayList<Student> classStudents;
-    private ArrayList<Student> yardStudents;
-    private ArrayList<Student> roadStudents;
+    private ArrayList<Student> classStudents = new ArrayList<>();
+    private ArrayList<Student> yardStudents = new ArrayList<>();
+    private ArrayList<Student> roadStudents = new ArrayList<>();
 
     private ArrayList<Instructor> unavailableInstructors = new ArrayList<>();
     private ArrayList<Student> unavailableStudents = new ArrayList<>();
 
     private HashMap<Instructor, ArrayList<Student>> classMap;
     private HashMap<Instructor, ArrayList<Student>> yardMap;
-    private HashMap<Instructor, Student> roadMap;
     private HashMap<LocalTime, HashMap<Instructor, ArrayList<Student>>> classSchedule;
     private HashMap<LocalTime, HashMap<Instructor, ArrayList<Student>>> yardSchedule;
-    private HashMap<LocalTime, HashMap<Instructor, ArrayList<Student>>> roadSchedule;
-    private Date date;
+    private HashMap<LocalTime, Pair<Instructor, Student>> roadSchedule;
+    private LocalDate date;
     private boolean yardTruckScheduled = false;
     private int numInstructors;
     private boolean classInstructorScheduled = false;
     private int numTruckInstructors = 0;
 
-    public DaySchedule(ArrayList<Instructor> instructors, ArrayList<Student> students, Date date, int trucks) {
+    public DaySchedule(ArrayList<Instructor> instructors, ArrayList<Student> students, LocalDate date, int trucks) {
         freeInstructors = instructors;
         numInstructors = instructors.size();
         freeStudents = students;
@@ -40,19 +41,36 @@ public class DaySchedule {
         roadSchedule = new HashMap<>();
         classMap = new HashMap<>();
         yardMap = new HashMap<>();
-        roadMap = new HashMap<>();
         createSchedule();
     }
 
+    public HashMap<LocalTime, HashMap<Instructor, ArrayList<Student>>> getClassSchedule() {
+        return this.classSchedule;
+    }
+
+    public HashMap<LocalTime, HashMap<Instructor, ArrayList<Student>>> getYardSchedule() {
+        return this.yardSchedule;
+    }
+
+    public HashMap<LocalTime, Pair<Instructor, Student>> getRoadSchedule() {
+        return this.roadSchedule;
+    }
+
+    public LocalDate getDate() {
+        return this.date;
+    }
+
+    //MODIFIES: this
+    //EFFECTS: checks instructors and students availability for that day, then distributes them
     public void createSchedule() {
         for (Instructor instructor : freeInstructors) {
-            if (!instructor.isAvailable()) {
+            if (!instructor.checkAvailabilityForDay(date)) {
                 unavailableInstructors.add(instructor);
                 freeInstructors.remove(instructor);
             }
         }
         for (Student student : freeStudents) {
-            if (!student.isAvailable()) {
+            if (!student.checkAvailabiltyForDay(date)) {
                 unavailableStudents.add(student);
                 freeStudents.remove(student);
             }
@@ -61,26 +79,33 @@ public class DaySchedule {
         distributeInstructors();
     }
 
+    //MODIFIES: this
+    //EFFECTS: Assigns students based on highest hours remaining & instructor availability
     private void dsitributeStudents() {
+        ArrayList<Student> freeStudentBase = new ArrayList<>(freeStudents);
 
-        for (Student student : freeStudents) {
+        for (Student student : freeStudentBase) {
             int classHours = student.getClassHoursLeft();
             int roadHours = student.getRoadHoursLeft();
             int yardHours = student.getYardHoursLeft();
+            int flexHours = student.getFlexHoursLeft();
             if (student.getIntroClassDaysLeft() > 0 && checkClassInstructor()) {
                 classStudents.add(student);
                 studentUnavailable(student);
                 student.introDayComplete();
-            } else if (classHours >= roadHours && classHours >= yardHours && checkClassInstructor()) {
+            } else if (classHours >= roadHours && classHours >= yardHours && checkClassInstructor() && classHours > 0) {
                 classStudents.add(student);
                 studentUnavailable(student);
-            } else if (roadHours >= classHours && roadHours >= yardHours && trucks > 0 && checkTruckInstructor()) {
+            } else if (roadHours >= classHours && roadHours >= yardHours && trucks > 0 && checkTruckInstructor() &&
+                    roadHours > 0) {
                 roadStudents.add(student);
                 studentUnavailable(student);
-                trucks =- 1;
-            } else if (yardHours >= classHours && yardHours >= roadHours && checkYardTruck()){
+                trucks -= 1;
+            } else if (yardHours >= classHours && yardHours >= roadHours && checkYardTruck() && yardHours > 0){
                 yardStudents.add(student);
                 studentUnavailable(student);
+            } else if (flexHours > 0) {
+                assignFlexHours(student);
             }
         }
         if (!freeStudents.isEmpty()) {
@@ -90,9 +115,22 @@ public class DaySchedule {
         }
     }
 
+    public void assignFlexHours(Student student) {
+        if (!classStudents.isEmpty() && classStudents.size() >= yardStudents.size() || yardStudents.isEmpty()) {
+            classStudents.add(student);
+
+        } else {
+            yardStudents.add(student);
+        }
+        studentUnavailable(student);
+        student.flexLesson(4);
+    }
+
+
+    //EFFECTS: returns true if there is both an instructor and truck available for a road lesson
     private boolean checkTruckInstructor() {
         if (numInstructors > 0 && trucks > 0) {
-            numInstructors =- 1;
+            numInstructors -= 1;
             numTruckInstructors += 1;
             return true;
         } else {
@@ -100,6 +138,7 @@ public class DaySchedule {
         }
     }
 
+    //EFFECTS: checks if classroom instructor has been scheduled; if not, assigns instructor if one is available
     private boolean checkClassInstructor() {
         if (classInstructorScheduled) {
             return true;
@@ -112,6 +151,7 @@ public class DaySchedule {
         }
     }
 
+    //EFFECTS: checks if yard truck has been scheduled; if not, assigns yard truck if available
     private boolean checkYardTruck() {
         if (yardTruckScheduled) {
             return true;
@@ -125,11 +165,15 @@ public class DaySchedule {
         }
     }
 
+    //MODIFIES: unavailableStudents, freeStudents
+    //EFFECTS: moves student from freeStudents list to unavailableStudents list
     private void studentUnavailable(Student student) {
         unavailableStudents.add(student);
         freeStudents.remove(student);
     }
 
+    //MODIFIES: this
+    //EFFECTS: assigns instructor with highest priority to classroom based on startTime if slots are left
     private void distributeInstructors() {
         boolean running = true;
         if (!classStudents.isEmpty()) {
@@ -158,6 +202,8 @@ public class DaySchedule {
         distributeRoadInstructors();
     }
 
+    //MODIFIES: instructor
+    //EFFECTS: removes available slot from instructor and checks if there are any slots left
     private void useInstructorSlot(Instructor instructor) {
         instructor.useSlot();
         if (!anyAvailableSlots(instructor)) {
@@ -165,28 +211,43 @@ public class DaySchedule {
         }
     }
 
+    //MODIFIES: this
+    //EFFECTS: assigns one road instructor to each student; any extra instructors go to yard
     private void distributeRoadInstructors() {
         for (Instructor instructor : freeInstructors) {
             for (Student student : roadStudents) {
-                roadMap.put(instructor, student);
+                Pair<Instructor, Student> roadPair = new Pair<> (instructor, student);
+                if (instructor.getAvailableSlots() == instructor.getTotalSlots()) {
+                    roadSchedule.put(instructor.getFirstStartTime(), roadPair);
+                } else {
+                    roadSchedule.put(instructor.getSecondStartTime(), roadPair);
+                }
                 useInstructorSlot(instructor);
             }
         }
         if (!freeInstructors.isEmpty()) {
             for (Instructor instructor : freeInstructors) {
                 yardMap.put(instructor, yardStudents);
+                if (instructor.getAvailableSlots() == instructor.getTotalSlots()) {
+                    yardSchedule.put(instructor.getFirstStartTime(), yardMap);
+                } else {
+                    yardSchedule.put(instructor.getSecondStartTime(), yardMap);
+                }
                 useInstructorSlot(instructor);
             }
         }
     }
 
-    private void instructorUnavailable(Instructor highestPriority) {
-        unavailableInstructors.add(highestPriority);
-        freeInstructors.remove(highestPriority);
+    //MODIFIES: unavailableInstructors, freeInstructors
+    //EFFECTS: removes instructor from freeInstructors and adds to unavailableInstructors
+    private void instructorUnavailable(Instructor instructor) {
+        unavailableInstructors.add(instructor);
+        freeInstructors.remove(instructor);
     }
 
-    private boolean anyAvailableSlots(Instructor highestPriority) {
-        return highestPriority.getAvailableSlots() > 0;
+    //EFFECTS: returns true if instructor has any availableSlots left
+    private boolean anyAvailableSlots(Instructor instructor) {
+        return instructor.getAvailableSlots() > 0;
     }
 
 }
