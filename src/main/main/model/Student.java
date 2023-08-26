@@ -9,33 +9,39 @@ import java.util.ArrayList;
 // Student with a name, id, hours left for the classroom, yard and road,
 // a boolean for availability and a list of scheduled unavailable days
 public class Student {
-    private static int nextId = 1;
-    private int id;
-    private SimpleStringProperty name;
+
+    private String name;
+    private static UUID id;
+
     private int classHoursLeft;
     private int yardHoursLeft;
     private int roadHoursLeft;
-
     private int flexHoursLeft;
-    private Boolean available = true;
+
+    private SimpleBooleanProperty available = true;
     private SimpleObjectProperty<ArrayList<LocalDate>> unavailableDays;
     private SimpleObjectProperty<LocalDate> roadTestDate;
+
     private int introClassDaysLeft;
 
+    private LocalDate startDate;
+    private Boolean morningPref;
+    private Boolean afternoonPref;
+
     public Student(String name) {
-        this.name = new SimpleStringProperty(name);
-        this.id = nextId++;
+        this.name = name;
         this.classHoursLeft = 50;
         this.yardHoursLeft = 40;
         this.roadHoursLeft = 50;
         this.flexHoursLeft = 6;
         unavailableDays = new SimpleObjectProperty<>(new ArrayList<>());
         introClassDaysLeft = 3;
+        id = UUID.randomUUID();
 
     }
 
     public String getName() {
-        return name.get();
+        return this.name;
     }
 
     public LocalDate getRoadTestDate() {
@@ -46,14 +52,16 @@ public class Student {
         return this.flexHoursLeft;
     }
 
+    public UUID getID() {
+        return this.id;
+
+    }
+
     public void flexLesson(int hours) {
         this.flexHoursLeft -= hours;
         this.available = true;
     }
 
-    public int getId() {
-        return id;
-    }
     public int getClassHoursLeft() {
         return this.classHoursLeft;
     }
@@ -69,7 +77,7 @@ public class Student {
     }
 
     public int getIntroClassDaysLeft() {
-        return introClassDaysLeft;
+        return this.introClassDaysLeft;
     }
 
     public ArrayList<LocalDate> getUnavailableDays() {
@@ -79,6 +87,14 @@ public class Student {
     public void introDayComplete() {
         introClassDaysLeft -= 1;
         classLesson();
+    }
+
+    public void setMorningPref(boolean pref) {
+        this.morningPref = pref;
+    }
+
+    public void setAfternoonPref(boolean pref) {
+        this.morningPref = pref;
     }
 
     public void setRoadTestDate(LocalDate date) {
